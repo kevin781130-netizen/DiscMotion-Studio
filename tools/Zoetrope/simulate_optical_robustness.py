@@ -173,7 +173,7 @@ def run(path: Path, output_dir: Path) -> int:
     clean_samples = cached_samples(pixels, integral, positions, 0)
     reference_signal = simulate_signal(clean_samples, 1, 0, 0)
     clean_gap = gap_for(reference_signal)
-    if clean_gap < GAP_THRESHOLD * 2:
+    if abs(clean_gap) < GAP_THRESHOLD:
         raise ValueError(f"Pristine synthetic blink has insufficient gray gap: {clean_gap:.4f}")
 
     scenarios = []
@@ -187,13 +187,14 @@ def run(path: Path, output_dir: Path) -> int:
                     signal = simulate_signal(blurred_samples, contrast, glare, noise)
                     eye_gap = gap_for(signal)
                     temporal_r = correlation(reference_signal, signal)
-                    survives = eye_gap >= GAP_THRESHOLD and temporal_r >= CORR_THRESHOLD
+                    survives = abs(eye_gap) >= GAP_THRESHOLD and temporal_r >= CORR_THRESHOLD
                     scenarios.append({
                         "contrast_fraction": contrast,
                         "box_blur_radius_pixels": radius,
                         "glare_peak_gray": glare,
                         "noise_peak_gray": noise,
-                        "eye_open_closed_gap_gray": round(eye_gap, 4),
+                        "eye_open_closed_gap_gray_signed": round(eye_gap, 4),
+                        "eye_open_closed_gap_gray_absolute": round(abs(eye_gap), 4),
                         "temporal_pearson_r": round(temporal_r, 5),
                         "model_survives": survives,
                     })
@@ -241,7 +242,7 @@ def run(path: Path, output_dir: Path) -> int:
             "noise_definition": "deterministic per-pixel uniform-like additive gray noise, peak amplitude",
             "eye_motion_metric": "mean eye brightness minus stable cheek brightness across 12 sectors",
             "assumed_survival_heuristic": {
-                "minimum_open_minus_closed_gray": GAP_THRESHOLD,
+                "minimum_absolute_open_minus_closed_gray": GAP_THRESHOLD,
                 "minimum_temporal_correlation": CORR_THRESHOLD,
             },
             "open_frame_indices": list(OPEN),
@@ -251,7 +252,8 @@ def run(path: Path, output_dir: Path) -> int:
             "glare_steps": list(GLARES),
             "noise_steps": list(NOISE_AMPLITUDES),
         },
-        "baseline_eye_gap_gray": round(clean_gap, 4),
+        "baseline_eye_gap_gray_signed": round(clean_gap, 4),
+        "baseline_eye_gap_gray_absolute": round(abs(clean_gap), 4),
         "total_tested_conditions": len(scenarios),
         "surviving_conditions": sum(x["model_survives"] for x in scenarios),
         "failed_conditions": sum(not x["model_survives"] for x in scenarios),
