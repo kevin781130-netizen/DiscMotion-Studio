@@ -122,17 +122,17 @@ dotnet run --project "$ROOT/tools/Zoetrope/Zoetrope.csproj" -c Release --no-buil
 dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
     cd-generate --input "$TEMP/blink-output/disc.png" \
     --output "$TEMP/blink-output/blink-cd.wav" \
-    --sectors 4500 --r0 24.5 --r1 56.8 --outer 57.5 \
+    --sectors 45000 --r0 24.5 --r1 56.8 --outer 57.5 \
     --tone-dither 1 --tone-levels 2 --interleave true --cue true
 dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
     cd-preview-track --track "$TEMP/blink-output/blink-cd.wav" \
     --output "$TEMP/blink-output/cd-readback.png" \
-    --sectors 4500 --r0 24.5 --r1 56.8 --outer 57.5 \
+    --sectors 45000 --r0 24.5 --r1 56.8 --outer 57.5 \
     --size 800 --byte-step 12 --deinterleave true
 dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
     cd-preview-warp --input "$TEMP/blink-output/disc.png" \
     --output "$TEMP/blink-output/cd-source-warp.png" \
-    --sectors 4500 --r0 24.5 --r1 56.8 --outer 57.5 \
+    --sectors 45000 --r0 24.5 --r1 56.8 --outer 57.5 \
     --actual-r0 24.5 --actual-r1 56.8 --size 800 --samples-per-sector 196 \
     --tone-dither 1 --tone-levels 2
 python3 "$ROOT/tools/Zoetrope/check_blink_quality.py" \

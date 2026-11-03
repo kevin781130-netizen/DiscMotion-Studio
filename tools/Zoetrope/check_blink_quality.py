@@ -70,7 +70,7 @@ def main():
     if projection_r<.98: failures.append("readback_differs_from_projection")
     report={
         "gate":"PASS" if not failures else "FAIL",
-        "scope":"synthetic illustrated face, 12 frames, 60-second CD encoder test (4500 sectors)",
+        "scope":"synthetic illustrated face, 12 frames, 60-second CD encoder test (45000 sectors)",
         "changed_eye_pixels":changed,
         "changed_outside_eye_mask":leaked,
         "source_eye_white_fractions":[round(x,4) for x in source],
