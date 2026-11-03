@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DiscMotion Studio | 12-frame Zoetrope Preview</title>
+<style>
+:root { color-scheme: dark; font-family: system-ui, sans-serif; }
+body { max-width: 960px; margin: auto; padding: 24px; background: #171923; color: #f5f5f5; }
+main { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+section { min-width: 0; } h1 { font-size: 1.5rem; }
+.disc { display: block; width: 100%; max-width: 430px; border-radius: 50%; }
+.aperture { height: 420px; background: #06070b; display: grid; place-items: center; border: 2px solid #616a80; border-radius: 16px; }
+.aperture img { max-height: 360px; max-width: 90%; object-fit: contain; }
+.controls { display: flex; flex-wrap: wrap; align-items: end; gap: 18px; margin-bottom: 18px; }
+label { display: grid; gap: 5px; } input { width: 100px; padding: 6px; }
+button { padding: 9px 16px; cursor: pointer; }
+small { color: #c6c8cc; }
+@media(max-width:680px) { main { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>DiscMotion Studio | 走馬燈模擬器</h1>
+<p>左：轉動中的碟面。右：固定觀察窗＋同步頻閃的<b>數位近似預覽</b>，不是實體燒錄或光學驗證。</p>
+<div class="controls">
+<label>轉速 RPM<input id="rpm" type="number" min="1" max="600" step="1" value="120"></label>
+<label>頻閃 Hz<input id="hz" type="number" min="1" max="120" step="1" value="24"></label>
+<button id="toggle">暫停</button>
+<output id="status"></output>
+</div>
+<main>
+<section><h2>碟面</h2><img class="disc" id="disc" src="disc.png" alt="12格環形圖案"></section>
+<section><h2>觀察窗：單格動畫</h2><div class="aperture"><img id="frame" src="frame_00.png" alt="固定窗影格"></div></section>
+</main>
+<p><small>120 RPM × 12 格 ÷ 60 = 24 Hz。實際觀看需要外部穩速旋轉台及單格遮罩／適當的頻閃或攝影機；一般 CD 唱盤不會播放視覺動畫。顯示器不保證逐次呈現 24Hz 頻閃。</small></p>
+<script>
+(() => {
+  "use strict";
+  const disc = document.getElementById("disc");
+  const frame = document.getElementById("frame");
+  const rpmField = document.getElementById("rpm");
+  const hzField = document.getElementById("hz");
+  const status = document.getElementById("status");
+  const button = document.getElementById("toggle");
+  let running = true, elapsed = 0, lastTime = null, oldIndex = -1;
+  function redraw(t) {
+    if (lastTime !== null && running) elapsed += Math.min((t - lastTime) / 1000, 0.25);
+    lastTime = t;
+    const rpm = Math.max(1, Math.min(600, Number(rpmField.value) || 120));
+    const hz = Math.max(1, Math.min(120, Number(hzField.value) || 24));
+    const rotations = elapsed * rpm / 60;
+    const flashNumber = Math.floor(elapsed * hz);
+    const frameIndex = ((Math.floor(flashNumber * (rpm / 60 * 12 / hz)) % 12) + 12) % 12;
+    disc.style.transform = "rotate(" + ((rotations * 360) % 360) + "deg)";
+    if (frameIndex !== oldIndex) {
+      frame.src = "frame_" + String(frameIndex).padStart(2, "0") + ".png";
+      oldIndex = frameIndex;
+    }
+    status.textContent = "Frame " + (frameIndex + 1) + "/12";
+    requestAnimationFrame(redraw);
+  }
+  button.addEventListener("click", () => {
+    running = !running;
+    button.textContent = running ? "暫停" : "繼續";
+  });
+  requestAnimationFrame(redraw);
+})();
+</script>
+</body>
+</html>
