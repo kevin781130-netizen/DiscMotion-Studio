@@ -115,6 +115,32 @@ python3 "$ROOT/tools/Zoetrope/compare_cd_readback.py" \
     --report "$TEMP/zoetrope-output/quality-report.json" \
     --diff "$TEMP/zoetrope-output/cd-diff.png"
 
+# Portrait blink fixture: 12 changing eye poses, face/background held fixed.
+python3 "$ROOT/tools/Zoetrope/generate_blink_fixture.py" --out "$TEMP/portrait-frames"
+dotnet run --project "$ROOT/tools/Zoetrope/Zoetrope.csproj" -c Release --no-build -- \
+    render --frames "$TEMP/portrait-frames" --out "$TEMP/blink-output"
+dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
+    cd-generate --input "$TEMP/blink-output/disc.png" \
+    --output "$TEMP/blink-output/blink-cd.wav" \
+    --sectors 4500 --r0 24.5 --r1 56.8 --outer 57.5 \
+    --tone-dither 1 --tone-levels 2 --interleave true --cue true
+dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
+    cd-preview-track --track "$TEMP/blink-output/blink-cd.wav" \
+    --output "$TEMP/blink-output/cd-readback.png" \
+    --sectors 4500 --r0 24.5 --r1 56.8 --outer 57.5 \
+    --size 800 --byte-step 12 --deinterleave true
+dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
+    cd-preview-warp --input "$TEMP/blink-output/disc.png" \
+    --output "$TEMP/blink-output/cd-source-warp.png" \
+    --sectors 4500 --r0 24.5 --r1 56.8 --outer 57.5 \
+    --actual-r0 24.5 --actual-r1 56.8 --size 800 --samples-per-sector 196 \
+    --tone-dither 1 --tone-levels 2
+python3 "$ROOT/tools/Zoetrope/check_blink_quality.py" \
+    --frames "$TEMP/portrait-frames" \
+    --warp "$TEMP/blink-output/cd-source-warp.png" \
+    --readback "$TEMP/blink-output/cd-readback.png" \
+    --report "$TEMP/blink-output/blink-quality-report.json"
+
 publish="$ROOT/tools/Zoetrope/_render_public"
 mkdir -p "$publish"
 cp "$TEMP/zoetrope-output/"*.png "$publish/"
@@ -123,5 +149,10 @@ cp "$TEMP/zoetrope-output/cd-readback.png" "$publish/cd-readback.png"
 cp "$TEMP/zoetrope-output/cd-source-warp.png" "$publish/cd-source-warp.png"
 cp "$TEMP/zoetrope-output/quality-report.json" "$publish/quality-report.json"
 cp "$TEMP/zoetrope-output/cd-diff.png" "$publish/cd-diff.png"
+mkdir -p "$publish/blink"
+cp "$TEMP/blink-output/"*.png "$publish/blink/"
+cp "$TEMP/blink-output/"frame_*.png "$publish/blink/"
+cp "$TEMP/blink-output/preview.html" "$publish/blink/index.html"
+cp "$TEMP/blink-output/blink-quality-report.json" "$publish/blink/quality-report.json"
 printf 'ZOETROPE_CD_GATE_PASS\nsource_branch=feature/zoetrope-animation-v1\ncd_smoke_sectors=4500\n' > "$publish/gate.txt"
-echo "GATE_PASS: dotnet release compile + selftest + 12-frame render integration"
+echo "GATE_PASS: dotnet release compile + synthetic eye-motion CD readback quality test"
