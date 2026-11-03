@@ -187,7 +187,7 @@ internal static class Program
         try
         {
             RasterCodec.SavePng(temp, CanvasSize, CanvasSize, result, grayscale: true);
-            BgraRaster decoded = RasterCodec.LoadBgra32(temp, MaxInputBytes, MaxInputPixels);
+            BgraRaster decoded = RasterCodec.LoadBgra32(temp, MaxInputBytes, CanvasSize * CanvasSize);
             if (decoded.Width != CanvasSize || decoded.Height != CanvasSize)
                 throw new InvalidOperationException("PNG roundtrip dimensions differ.");
         }
