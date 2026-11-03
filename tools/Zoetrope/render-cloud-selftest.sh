@@ -57,9 +57,61 @@ assert "frame_00.png" in html and "disc.png" in html
 print("zoetrope-render-integration: PASS (14 files, PNG headers, 12 stills, preview)")
 PY
 
+# Run the REAL DiscImageStudio CD engine on the generated 12-sector image.
+# Only 4,500 sectors / 60 seconds are used here as an inexpensive smoke test.
+# The 80-minute optical raster and actual CD-R visibility are NOT validated.
+dotnet restore "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" --disable-parallel
+dotnet build "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-restore -warnaserror
+dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
+    cd-generate --input "$TEMP/zoetrope-output/disc.png" \
+    --output "$TEMP/zoetrope-output/cd-zoetrope.wav" \
+    --sectors 4500 --r0 24.5 --r1 56.8 --outer 57.5 \
+    --tone-dither 1 --tone-levels 2 --interleave true --cue true
+dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
+    cd-preview-track --track "$TEMP/zoetrope-output/cd-zoetrope.wav" \
+    --output "$TEMP/zoetrope-output/cd-readback.png" \
+    --sectors 4500 --r0 24.5 --r1 56.8 --outer 57.5 \
+    --size 800 --byte-step 12 --deinterleave true
+dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
+    cd-preview-warp --input "$TEMP/zoetrope-output/disc.png" \
+    --output "$TEMP/zoetrope-output/cd-source-warp.png" \
+    --sectors 4500 --r0 24.5 --r1 56.8 --outer 57.5 \
+    --actual-r0 24.5 --actual-r1 56.8 --size 800 --samples-per-sector 32 \
+    --tone-dither 1 --tone-levels 2
+
+python3 - "$TEMP/zoetrope-output" <<'PY'
+from pathlib import Path
+import json, struct, sys
+p = Path(sys.argv[1])
+wav = p / "cd-zoetrope.wav"
+cue = p / "cd-zoetrope.cue"
+sidecar = p / "cd-zoetrope.wav.json"
+expected_bytes = 4500 * 2352
+assert wav.stat().st_size == expected_bytes + 44, "CD WAV size is incorrect"
+with wav.open("rb") as f:
+    header = f.read(44)
+    samples = f.read(16384)
+assert header[0:4] == b"RIFF" and header[8:16] == b"WAVEfmt "
+assert struct.unpack_from("<HHIIHH", header, 20) == (1,2,44100,176400,4,16), "Not CD-DA PCM"
+assert header[36:40] == b"data" and struct.unpack_from("<I",header,40)[0] == expected_bytes
+assert len(set(samples)) > 1, "Image payload appears constant"
+assert 'FILE "cd-zoetrope.wav" WAVE' in cue.read_text(encoding="utf-8-sig")
+assert "TRACK 01 AUDIO" in cue.read_text(encoding="utf-8-sig")
+metadata = json.loads(sidecar.read_text(encoding="utf-8"))
+assert metadata["format"] == "cd-da-track-v1" and metadata["sectors"] == 4500
+assert metadata["interleaved"] is True and metadata["toneLevels"] == 2
+for fn in ("cd-readback.png", "cd-source-warp.png"):
+    data = (p / fn).read_bytes()
+    assert data.startswith(b"\x89PNG\r\n\x1a\n"), f"Bad preview PNG: {fn}"
+    assert struct.unpack(">II",data[16:24]) == (800, 800), f"Bad preview size: {fn}"
+print("cd-image-pipeline: PASS (DiscImageStudio CD WAV+CUE+metadata+readback+warp)")
+PY
+
 publish="$ROOT/tools/Zoetrope/_render_public"
 mkdir -p "$publish"
 cp "$TEMP/zoetrope-output/"*.png "$publish/"
 cp "$TEMP/zoetrope-output/preview.html" "$publish/index.html"
-printf 'ZOETROPE_GATE_PASS\nsource_branch=feature/zoetrope-animation-v1\n' > "$publish/gate.txt"
+cp "$TEMP/zoetrope-output/cd-readback.png" "$publish/cd-readback.png"
+cp "$TEMP/zoetrope-output/cd-source-warp.png" "$publish/cd-source-warp.png"
+printf 'ZOETROPE_CD_GATE_PASS\nsource_branch=feature/zoetrope-animation-v1\ncd_smoke_sectors=4500\n' > "$publish/gate.txt"
 echo "GATE_PASS: dotnet release compile + selftest + 12-frame render integration"
