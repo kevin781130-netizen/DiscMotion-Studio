@@ -76,7 +76,7 @@ dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" 
     cd-preview-warp --input "$TEMP/zoetrope-output/disc.png" \
     --output "$TEMP/zoetrope-output/cd-source-warp.png" \
     --sectors 4500 --r0 24.5 --r1 56.8 --outer 57.5 \
-    --actual-r0 24.5 --actual-r1 56.8 --size 800 --samples-per-sector 32 \
+    --actual-r0 24.5 --actual-r1 56.8 --size 800 --samples-per-sector 196 \
     --tone-dither 1 --tone-levels 2
 
 python3 - "$TEMP/zoetrope-output" <<'PY'
@@ -107,11 +107,21 @@ for fn in ("cd-readback.png", "cd-source-warp.png"):
 print("cd-image-pipeline: PASS (DiscImageStudio CD WAV+CUE+metadata+readback+warp)")
 PY
 
+# Aligned 12-byte sampling: each preview must see identical logical positions.
+python3 "$ROOT/tools/Zoetrope/compare_cd_readback.py" \
+    --source "$TEMP/zoetrope-output/disc.png" \
+    --warp "$TEMP/zoetrope-output/cd-source-warp.png" \
+    --readback "$TEMP/zoetrope-output/cd-readback.png" \
+    --report "$TEMP/zoetrope-output/quality-report.json" \
+    --diff "$TEMP/zoetrope-output/cd-diff.png"
+
 publish="$ROOT/tools/Zoetrope/_render_public"
 mkdir -p "$publish"
 cp "$TEMP/zoetrope-output/"*.png "$publish/"
 cp "$TEMP/zoetrope-output/preview.html" "$publish/index.html"
 cp "$TEMP/zoetrope-output/cd-readback.png" "$publish/cd-readback.png"
 cp "$TEMP/zoetrope-output/cd-source-warp.png" "$publish/cd-source-warp.png"
+cp "$TEMP/zoetrope-output/quality-report.json" "$publish/quality-report.json"
+cp "$TEMP/zoetrope-output/cd-diff.png" "$publish/cd-diff.png"
 printf 'ZOETROPE_CD_GATE_PASS\nsource_branch=feature/zoetrope-animation-v1\ncd_smoke_sectors=4500\n' > "$publish/gate.txt"
 echo "GATE_PASS: dotnet release compile + selftest + 12-frame render integration"
