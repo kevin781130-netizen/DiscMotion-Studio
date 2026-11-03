@@ -116,7 +116,7 @@ python3 "$ROOT/tools/Zoetrope/compare_cd_readback.py" \
     --diff "$TEMP/zoetrope-output/cd-diff.png"
 
 # Portrait blink fixture: 12 changing eye poses, face/background held fixed.
-python3 "$ROOT/tools/Zoetrope/generate_blink_fixture.py" --out "$TEMP/portrait-frames"
+python3 "$ROOT/tools/Zoetrope/generate_blink_fixture.py" --style bold --out "$TEMP/portrait-frames"
 dotnet run --project "$ROOT/tools/Zoetrope/Zoetrope.csproj" -c Release --no-build -- \
     render --frames "$TEMP/portrait-frames" --out "$TEMP/blink-output"
 dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
@@ -232,6 +232,35 @@ python3 "$ROOT/tools/Zoetrope/simulate_optical_robustness.py" --selftest
 python3 "$ROOT/tools/Zoetrope/simulate_optical_robustness.py" \
     --readback "$TEMP/full-disc/cd-readback.png" \
     --out "$TEMP/full-disc/optical-stress"
+
+# Require a strict A/B gain over the previously archived classic fixture result:
+# same 216 stress conditions, identical metric, threshold, and synthetic geometry.
+# Classic result at commit a7fedf9: 20 / 216 survives. Do not silently relax.
+python3 - "$TEMP/full-disc/optical-stress/optical-stress-report.json" <<'PY'
+import json, sys
+report=json.load(open(sys.argv[1],encoding="utf-8"))
+assert report["total_tested_conditions"] == 216
+assert report["surviving_conditions"] > 20, (
+    "Bold eye fixture failed to improve upon 20/216 classic baseline: "
+    + str(report["surviving_conditions"]))
+assert report["model"]["assumed_survival_heuristic"] == {
+    "minimum_absolute_open_minus_closed_gray": 8.0,
+    "minimum_temporal_correlation": 0.85,
+}, "Threshold changed; cannot compare"
+report["comparison"] = {
+    "classic_baseline_commit": "a7fedf91f3161471645d7d71683d5bf155a6154c",
+    "classic_surviving_conditions": 20,
+    "optimized_surviving_conditions": report["surviving_conditions"],
+    "optimized_minus_classic": report["surviving_conditions"]-20,
+    "same_stress_grid_and_thresholds": True,
+    "note": "Historical baseline from prior Render gate; the two fixtures differ in eye drawing only"
+}
+with open(sys.argv[1],"w",encoding="utf-8") as f:
+    json.dump(report,f,ensure_ascii=False,indent=2)
+    f.write("\n")
+print(f"blink-contrast-AB: PASS | classic=20/216 | bold={report['surviving_conditions']}/216 "
+      f"| delta=+{report['surviving_conditions']-20}")
+PY
 
 # Avoid uploading/distributing a misleading 846MB audio-pattern file.
 rm -f "$TEMP/full-disc/zoetrope-80min.wav" "$TEMP/full-disc/zoetrope-80min.wav.json" "$TEMP/full-disc/zoetrope-80min.cue"
