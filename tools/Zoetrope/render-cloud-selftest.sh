@@ -141,6 +141,95 @@ python3 "$ROOT/tools/Zoetrope/check_blink_quality.py" \
     --readback "$TEMP/blink-output/cd-readback.png" \
     --report "$TEMP/blink-output/blink-quality-report.json"
 
+# Full-size 79m57s CD-DA image gate: 359,849 sectors, unmodified CD encoder.
+# Test on the exact same synthetic 12-frame blink source. Keep the generated
+# 846 MiB WAV temporary; only small preview images / structured reports publish.
+FULL_SECTORS=359849
+mkdir -p "$TEMP/full-disc"
+dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
+    cd-generate --input "$TEMP/blink-output/disc.png" \
+    --output "$TEMP/full-disc/zoetrope-80min.wav" \
+    --sectors "$FULL_SECTORS" --r0 24.5 --r1 56.8 --outer 57.5 \
+    --tone-dither 1 --tone-levels 2 --interleave true --cue true
+
+# Capacity and audio-container metadata must match the output exactly.
+python3 - "$TEMP/full-disc" "$FULL_SECTORS" <<'PY'
+import json, pathlib, struct, sys
+root = pathlib.Path(sys.argv[1])
+sectors = int(sys.argv[2])
+wav = root / "zoetrope-80min.wav"
+cue = root / "zoetrope-80min.cue"
+sidecar = root / "zoetrope-80min.wav.json"
+payload = sectors * 2352
+assert wav.stat().st_size == payload + 44, "Full-CD WAV size mismatch"
+with wav.open("rb") as f:
+    header = f.read(44)
+    f.seek(44 + payload - 2352)
+    tail = f.read(2352)
+assert len(tail) == 2352, "Missing final sector"
+assert header[:4] == b"RIFF" and header[8:12] == b"WAVE"
+assert header[12:16] == b"fmt " and header[36:40] == b"data"
+assert struct.unpack_from("<I", header, 4)[0] == payload + 36
+assert struct.unpack_from("<HHIIHH", header, 20) == (1, 2, 44100, 176400, 4, 16)
+assert struct.unpack_from("<I", header, 40)[0] == payload
+assert 'FILE "zoetrope-80min.wav" WAVE' in cue.read_text(encoding="utf-8-sig")
+assert "TRACK 01 AUDIO" in cue.read_text(encoding="utf-8-sig")
+metadata = json.loads(sidecar.read_text(encoding="utf-8"))
+assert metadata["format"] == "cd-da-track-v1" and metadata["sectors"] == sectors
+assert metadata["interleaved"] is True and metadata["toneLevels"] == 2
+report = {
+    "gate": "PASS",
+    "scope": "full 359849-sector image-pattern CD-DA file integrity; not an optical or audio-music acceptance",
+    "sectors": sectors,
+    "seconds": sectors / 75,
+    "wav_bytes": wav.stat().st_size,
+    "wave_data_bytes": payload,
+    "riff_pcm": "44100 Hz, stereo, 16-bit",
+    "cue": "TRACK 01 AUDIO",
+    "full_last_sector_present": True,
+    "warnings": [
+        "The WAV is an image-coded signal, not a commercially playable album.",
+        "A file with CD-DA headers is not proof that a real CD-R will burn, spin, or display the image.",
+        "DiscImageStudio uses its own calibrated geometry model; real media must still be measured."
+    ]
+}
+(root / "full-disc-capacity.json").write_text(
+    json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print(f"full-cd-capacity: PASS | sectors={sectors} | bytes={wav.stat().st_size} | duration={sectors/75:.3f}s")
+PY
+
+dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
+    cd-preview-track --track "$TEMP/full-disc/zoetrope-80min.wav" \
+    --output "$TEMP/full-disc/cd-readback.png" \
+    --sectors "$FULL_SECTORS" --r0 24.5 --r1 56.8 --outer 57.5 \
+    --size 800 --byte-step 12 --deinterleave true
+dotnet run --project "$ROOT/src/DiscImageStudio.Cli/DiscImageStudio.Cli.csproj" -c Release --no-build -- \
+    cd-preview-warp --input "$TEMP/blink-output/disc.png" \
+    --output "$TEMP/full-disc/cd-source-warp.png" \
+    --sectors "$FULL_SECTORS" --r0 24.5 --r1 56.8 --outer 57.5 \
+    --actual-r0 24.5 --actual-r1 56.8 --size 800 --samples-per-sector 196 \
+    --tone-dither 1 --tone-levels 2
+python3 "$ROOT/tools/Zoetrope/check_blink_quality.py" \
+    --frames "$TEMP/portrait-frames" \
+    --warp "$TEMP/full-disc/cd-source-warp.png" \
+    --readback "$TEMP/full-disc/cd-readback.png" \
+    --report "$TEMP/full-disc/full-disc-quality.json" \
+    --sectors "$FULL_SECTORS"
+
+python3 - "$TEMP/full-disc/full-disc-quality.json" "$TEMP/blink-output/blink-quality-report.json" <<'PY'
+import json,sys
+full=json.load(open(sys.argv[1], encoding="utf-8"))
+short=json.load(open(sys.argv[2], encoding="utf-8"))
+assert full["gate"] == short["gate"] == "PASS"
+assert full["sectors"] == 359849
+print("full-cd-vs-10min: PASS | "
+      f"short_gap={short['readback_open_closed_difference']:.4f} | "
+      f"full_gap={full['readback_open_closed_difference']:.4f} | "
+      f"full_temporal_r={full['temporal_correlation_source_readback']:.4f}")
+PY
+# Avoid uploading/distributing a misleading 846MB audio-pattern file.
+rm -f "$TEMP/full-disc/zoetrope-80min.wav" "$TEMP/full-disc/zoetrope-80min.wav.json" "$TEMP/full-disc/zoetrope-80min.cue"
+
 publish="$ROOT/tools/Zoetrope/_render_public"
 mkdir -p "$publish"
 cp "$TEMP/zoetrope-output/"*.png "$publish/"
@@ -154,5 +243,10 @@ cp "$TEMP/blink-output/"*.png "$publish/blink/"
 cp "$TEMP/blink-output/"frame_*.png "$publish/blink/"
 cp "$TEMP/blink-output/preview.html" "$publish/blink/index.html"
 cp "$TEMP/blink-output/blink-quality-report.json" "$publish/blink/quality-report.json"
+mkdir -p "$publish/full-disc"
+cp "$TEMP/full-disc/cd-readback.png" "$publish/full-disc/cd-readback.png"
+cp "$TEMP/full-disc/cd-source-warp.png" "$publish/full-disc/cd-source-warp.png"
+cp "$TEMP/full-disc/full-disc-capacity.json" "$publish/full-disc/capacity-report.json"
+cp "$TEMP/full-disc/full-disc-quality.json" "$publish/full-disc/quality-report.json"
 printf 'ZOETROPE_CD_GATE_PASS\nsource_branch=feature/zoetrope-animation-v1\ncd_smoke_sectors=4500\n' > "$publish/gate.txt"
-echo "GATE_PASS: dotnet release compile + synthetic eye-motion CD readback quality test"
+echo "GATE_PASS: full 359849-sector CD-DA capacity + synthetic 12-frame readback precision"

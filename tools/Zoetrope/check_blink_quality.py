@@ -29,7 +29,11 @@ def main():
     parser=argparse.ArgumentParser()
     for arg in ("frames","warp","readback","report"):
         parser.add_argument("--"+arg,required=True,type=Path)
+    parser.add_argument("--sectors",type=int,default=45000)
+
     args=parser.parse_args()
+    if args.sectors < 75:
+        raise ValueError("Expected at least 75 sectors")
     frames=[]
     for i in range(12):
         w,h,image=read_gray_png(args.frames/f"{i:02}.png")
@@ -70,7 +74,8 @@ def main():
     if projection_r<.98: failures.append("readback_differs_from_projection")
     report={
         "gate":"PASS" if not failures else "FAIL",
-        "scope":"synthetic illustrated face, 12 frames, 60-second CD encoder test (45000 sectors)",
+        "scope":f"synthetic illustrated face, 12 frames, {args.sectors/75:.3f}-second CD-DA image test ({args.sectors} sectors)",
+        "sectors":args.sectors,
         "changed_eye_pixels":changed,
         "changed_outside_eye_mask":leaked,
         "source_eye_white_fractions":[round(x,4) for x in source],
@@ -85,7 +90,7 @@ def main():
             "Synthetic illustrated face, not a real singer photograph.",
             "CD preview is a simulated digital readback, not physical CD-R.",
             "Unsampled pixels appear white in this renderer; perceptual legibility unverified.",
-            "Full-capacity CD, actual burner, reflective contrast, spindle and strobe not tested.",
+            "Full-capacity sector count alone does not establish actual burner, reflectivity, spindle or strobe behavior.",
             "The generated audio track contains encoded image pattern, not songs."
         ],
         "failures":failures
