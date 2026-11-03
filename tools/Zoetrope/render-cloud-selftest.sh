@@ -288,4 +288,10 @@ cp "$TEMP/full-disc/optical-stress/optical-stress-report.json" "$publish/full-di
 cp "$TEMP/full-disc/optical-stress/mild-stress.png" "$publish/full-disc/optical-stress/mild-stress.png"
 cp "$TEMP/full-disc/optical-stress/severe-stress.png" "$publish/full-disc/optical-stress/severe-stress.png"
 printf 'ZOETROPE_CD_GATE_PASS\nsource_branch=feature/zoetrope-animation-v1\ncd_smoke_sectors=4500\n' > "$publish/gate.txt"
+python3 "$ROOT/tools/Zoetrope/closeout_predevice.py" \
+    --capacity "$TEMP/full-disc/full-disc-capacity.json" \
+    --blink "$TEMP/full-disc/full-disc-quality.json" \
+    --stress "$TEMP/full-disc/optical-stress/optical-stress-report.json" \
+    --windows-script "$ROOT/tools/Zoetrope/Prepare-DeviceUAT.ps1" \
+    --report "$publish/pre-device-rc.json"
 echo "GATE_PASS: full CD-DA capacity + blink readback + uncalibrated optical stress sweep"
