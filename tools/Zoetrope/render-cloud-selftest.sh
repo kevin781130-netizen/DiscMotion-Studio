@@ -227,6 +227,12 @@ print("full-cd-vs-10min: PASS | "
       f"full_gap={full['readback_open_closed_difference']:.4f} | "
       f"full_temporal_r={full['temporal_correlation_source_readback']:.4f}")
 PY
+# Simulate only *uncalibrated* optical stress on the actual full-capacity readback.
+python3 "$ROOT/tools/Zoetrope/simulate_optical_robustness.py" --selftest
+python3 "$ROOT/tools/Zoetrope/simulate_optical_robustness.py" \
+    --readback "$TEMP/full-disc/cd-readback.png" \
+    --out "$TEMP/full-disc/optical-stress"
+
 # Avoid uploading/distributing a misleading 846MB audio-pattern file.
 rm -f "$TEMP/full-disc/zoetrope-80min.wav" "$TEMP/full-disc/zoetrope-80min.wav.json" "$TEMP/full-disc/zoetrope-80min.cue"
 
@@ -248,5 +254,9 @@ cp "$TEMP/full-disc/cd-readback.png" "$publish/full-disc/cd-readback.png"
 cp "$TEMP/full-disc/cd-source-warp.png" "$publish/full-disc/cd-source-warp.png"
 cp "$TEMP/full-disc/full-disc-capacity.json" "$publish/full-disc/capacity-report.json"
 cp "$TEMP/full-disc/full-disc-quality.json" "$publish/full-disc/quality-report.json"
+mkdir -p "$publish/full-disc/optical-stress"
+cp "$TEMP/full-disc/optical-stress/optical-stress-report.json" "$publish/full-disc/optical-stress/report.json"
+cp "$TEMP/full-disc/optical-stress/mild-stress.png" "$publish/full-disc/optical-stress/mild-stress.png"
+cp "$TEMP/full-disc/optical-stress/severe-stress.png" "$publish/full-disc/optical-stress/severe-stress.png"
 printf 'ZOETROPE_CD_GATE_PASS\nsource_branch=feature/zoetrope-animation-v1\ncd_smoke_sectors=4500\n' > "$publish/gate.txt"
-echo "GATE_PASS: full 359849-sector CD-DA capacity + synthetic 12-frame readback precision"
+echo "GATE_PASS: full CD-DA capacity + blink readback + uncalibrated optical stress sweep"
