@@ -288,6 +288,46 @@ cp "$TEMP/full-disc/optical-stress/optical-stress-report.json" "$publish/full-di
 cp "$TEMP/full-disc/optical-stress/mild-stress.png" "$publish/full-disc/optical-stress/mild-stress.png"
 cp "$TEMP/full-disc/optical-stress/severe-stress.png" "$publish/full-disc/optical-stress/severe-stress.png"
 printf 'ZOETROPE_CD_GATE_PASS\nsource_branch=feature/zoetrope-animation-v1\ncd_smoke_sectors=4500\n' > "$publish/gate.txt"
+# Pin verified official PowerShell binary, parse Windows UAT with real PowerShell
+# language parser on Linux. This is NOT executing the script on Windows.
+PWSH_ARCHIVE="$TEMP/powershell-linux-x64.tar.gz"
+curl -fsSL --retry 2 --connect-timeout 20 \
+    "https://github.com/PowerShell/PowerShell/releases/download/v7.6.9/powershell-7.6.9-linux-x64.tar.gz" \
+    -o "$PWSH_ARCHIVE"
+printf '%s  %s\n' "1da6d6d6035d651f20e70ddee7c4c15ac6ab8b9fb40ee92240d91263f28a884b" "$PWSH_ARCHIVE" | sha256sum --check --status
+mkdir -p "$TEMP/powershell"
+tar -xzf "$PWSH_ARCHIVE" -C "$TEMP/powershell"
+chmod +x "$TEMP/powershell/pwsh"
+cat > "$TEMP/validate-powershell.ps1" <<'PS'
+param([Parameter(Mandatory=$true)][string]$Target)
+$ErrorActionPreference='Stop'
+$tokens=$null
+$parseErrors=$null
+[System.Management.Automation.Language.Parser]::ParseFile($Target,[ref]$tokens,[ref]$parseErrors) | Out-Null
+if ($parseErrors.Count -ne 0) {
+    foreach ($e in $parseErrors) { [Console]::Error.WriteLine($e.ToString()) }
+    exit 1
+}
+Write-Output "POWERSHELL_PARSER_PASS: UAT launcher syntax (Linux pwsh 7.6.9)"
+PS
+"$TEMP/powershell/pwsh" -NoLogo -NoProfile -NonInteractive -File \
+    "$TEMP/validate-powershell.ps1" "$ROOT/tools/Zoetrope/Prepare-DeviceUAT.ps1"
+
+# Fail-closed negative test: missing input must not generate any output.
+if "$TEMP/powershell/pwsh" -NoLogo -NoProfile -NonInteractive -File \
+    "$ROOT/tools/Zoetrope/Prepare-DeviceUAT.ps1" \
+    -Frames "$TEMP/should-not-exist" -OutDir "$TEMP/never-create" > "$TEMP/negative.log" 2>&1
+then
+    echo "PREDEVICE_NEGATIVE_TEST_FAIL: missing frames accepted" >&2
+    exit 1
+fi
+if [ -e "$TEMP/never-create" ]; then
+    echo "PREDEVICE_NEGATIVE_TEST_FAIL: output modified for invalid input" >&2
+    exit 1
+fi
+echo "POWERSHELL_PREDEVICE_FAIL_CLOSED_PASS: nonexistent frames rejected"
+export UAT_PWSH_PARSE_PASS=1
+
 python3 "$ROOT/tools/Zoetrope/closeout_predevice.py" \
     --capacity "$TEMP/full-disc/full-disc-capacity.json" \
     --blink "$TEMP/full-disc/full-disc-quality.json" \

@@ -2,6 +2,7 @@
 """Fail-closed cloud evidence aggregation. Hardware and Windows remain NOT_RUN."""
 import argparse
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -26,6 +27,7 @@ def main():
         "minimum_absolute_open_minus_closed_gray":8.0,
         "minimum_temporal_correlation":0.85,
     }
+    assert os.environ.get("UAT_PWSH_PARSE_PASS")=="1", "PowerShell Linux parser gate not executed"
     script=Path(a.windows_script).read_text(encoding="utf-8")
     assert all(x in script for x in ("359849","WINDOWS_ARTIFACT_PREP_PASS","NOT_RUN","Get-FileHash"))
     sha=subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip()
@@ -37,7 +39,9 @@ def main():
                   "blink_gap":b["readback_open_closed_difference"],
                   "blink_temporal_r":b["temporal_correlation_source_readback"],
                   "stress_survived":s["surviving_conditions"],"stress_total":216},
-        "windows_script":"PRESENT_STATIC_ONLY_NOT_RUN",
+        "windows_script":"LINUX_PWSH_PARSE_PASS_WINDOWS_RUNTIME_NOT_RUN",
+        "powershell_parser_linux":"PASS",
+        "negative_missing_frames_linux":"PASS",
         "real_person_photo":"NOT_RUN",
         "physical_cd_r_burn":"NOT_RUN",
         "physical_optics":"NOT_RUN",

@@ -12,7 +12,7 @@
 
 若系統阻止 ps1，先檢查 PowerShell 執行原則，不要永久放寬機器安全設定。
 
-入口不會燒錄、不會覆蓋既有輸出；會生成 render/disc.png、render/preview.html、burn/disc-zoetrope.wav、burn/disc-zoetrope.cue、burn/disc-zoetrope.wav.json、PRE_DEVICE_REPORT.json。只有看到報告內 WINDOWS_ARTIFACT_PREP_PASS 才繼續；這仍不是實體打樣通過。Windows PowerShell 入口尚未在 Windows 實際跑過，狀態 NOT_RUN。
+入口不會燒錄、不會覆蓋既有輸出；會生成 render/disc.png、render/preview.html、burn/disc-zoetrope.wav、burn/disc-zoetrope.cue、burn/disc-zoetrope.wav.json、PRE_DEVICE_REPORT.json。只有看到報告內 WINDOWS_ARTIFACT_PREP_PASS 才繼續；這仍不是實體打樣通過。Windows PowerShell 入口尚未在 Windows 實際跑過，狀態 NOT_RUN。封板雲端會以官方 PowerShell 7.6.9 執行語法解析及「來源不存在」拒絕測試（Linux 上執行），不代表 Windows 相容性通過。
 
 ## 已通過的雲端測試
 
